@@ -7,13 +7,15 @@ using BackMaster.Platform;
 namespace BackMaster.Tray;
 
 /// <summary>
-/// The student-facing tray icon. It shows what the service is doing and announces the
-/// start and end of lessons; it enforces nothing itself, so closing it changes nothing.
+/// The student-facing tray icon. It shows what the service is doing, and the fox card
+/// announces lessons and explains blocked sites. It enforces nothing itself, so closing
+/// it changes nothing.
 /// The configured hotkey opens the phrase dialog, and the right phrase opens settings.
 /// </summary>
 internal sealed class TrayApp : ApplicationContext
 {
-    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(10);
+    // Short, so the fox appears while the student is still looking at the failed page.
+    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(2);
 
     private readonly CompanionMessages _messages = Messages.Load();
     private readonly PipeClient _client = new();
@@ -28,6 +30,9 @@ internal sealed class TrayApp : ApplicationContext
     private bool? _lastEnforce;
     private DateTime _policyStamp = DateTime.MinValue;
     private bool _hotkeyWarned;
+    private bool _polling;
+    private long? _attemptCursor;
+    private FoxPopup? _fox;
     private PhraseDialog? _phraseDialog;
     private SettingsForm? _settings;
 
@@ -59,9 +64,31 @@ internal sealed class TrayApp : ApplicationContext
 
     private async Task PollAsync()
     {
+        if (_polling) return;
+        _polling = true;
+        try
+        {
+            await PollOnceAsync();
+        }
+        finally
+        {
+            _polling = false;
+        }
+    }
+
+    private async Task PollOnceAsync()
+    {
         RefreshHotkey();
-        var response = await _client.StatusAsync();
+        var response = await _client.StatusAsync(_attemptCursor);
         _status = response?.Status;
+
+        // The first reply only sets the cursor, so attempts from before logon are not replayed.
+        if (response?.Cursor is long cursor)
+        {
+            if (_attemptCursor is not null && response.Attempts is { Count: > 0 } attempts)
+                ShowFox(FoxCard.From(_messages.Blocked(attempts[^1]), _messages.RandomTip(_random)));
+            _attemptCursor = cursor;
+        }
 
         string text = _messages.TrayText(_status);
         _statusItem.Text = text;
@@ -73,8 +100,7 @@ internal sealed class TrayApp : ApplicationContext
             // Announce transitions, but not the state found at logon.
             if (_lastEnforce is not null && _lastEnforce != _status.Enforce && _status.Mode == EnforcementMode.Scheduled)
             {
-                var m = _status.Enforce ? _messages.Starting(_status) : _messages.LessonEnding;
-                _icon.ShowBalloonTip(8000, m.Title, m.Body, ToolTipIcon.Info);
+                ShowFox(FoxCard.From(_status.Enforce ? _messages.Starting(_status) : _messages.LessonEnding));
             }
             _lastEnforce = _status.Enforce;
         }
@@ -115,7 +141,21 @@ internal sealed class TrayApp : ApplicationContext
         }
     }
 
-    private void ShowTip() => _icon.ShowBalloonTip(6000, "BackMaster", _messages.RandomTip(_random), ToolTipIcon.None);
+    private void ShowTip() => ShowFox(new FoxCard("", "Лисицата казва…", _messages.RandomTip(_random)));
+
+    /// <summary>Shows a fox card, replacing any card still on screen.</summary>
+    private void ShowFox(FoxCard card)
+    {
+        _fox?.Close();
+        _fox = new FoxPopup(card, _messages.Dismiss);
+        var shown = _fox;
+        shown.FormClosed += (_, _) =>
+        {
+            if (_fox == shown) _fox = null;
+            shown.Dispose();
+        };
+        shown.ShowInCorner();
+    }
 
     private void OpenPhraseDialog()
     {
@@ -162,6 +202,7 @@ internal sealed class TrayApp : ApplicationContext
         {
             _timer.Dispose();
             _hotkey.Dispose();
+            _fox?.Close();
             _icon.Visible = false;
             _icon.Dispose();
         }

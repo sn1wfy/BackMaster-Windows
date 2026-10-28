@@ -1,3 +1,4 @@
+using BackMaster.Core.Filtering;
 using BackMaster.Core.Policy;
 using BackMaster.Core.Scheduling;
 using BackMaster.Platform;
@@ -21,6 +22,7 @@ public sealed class EnforcementWorker : BackgroundService
     private ClassroomPolicy _policy = ClassroomPolicy.Default;
     private ClassSchedule _schedule = PolicyLoader.ToSchedule(ClassroomPolicy.Default);
     private IReadOnlyList<string> _domains = PolicyLoader.BlockedDomains(ClassroomPolicy.Default);
+    private BlockMatcher _matcher = BlockMatcher.From(ClassroomPolicy.Default);
     private DateTime _policyStamp = DateTime.MinValue;
     private string? _policyError;
     private bool? _lastEnforce;
@@ -112,7 +114,7 @@ public sealed class EnforcementWorker : BackgroundService
         {
             _log.LogWarning("The hosts file did not match the policy and was corrected.");
         }
-        _state.Update(_policy, decision, wanted.Count, _policyError);
+        _state.Update(_policy, decision, _matcher, wanted.Count, _policyError);
     }
 
     private void ReloadPolicyIfChanged()
@@ -127,6 +129,7 @@ public sealed class EnforcementWorker : BackgroundService
             var policy = PolicyStore.LoadOrDefault(_options.Paths);
             _schedule = PolicyLoader.ToSchedule(policy);
             _domains = PolicyLoader.BlockedDomains(policy);
+            _matcher = BlockMatcher.From(policy);
             _policy = policy;
             _policyError = null;
             _log.LogInformation("Policy loaded: mode {Mode}, {Periods} periods in {Zone}, {Domains} domains.",

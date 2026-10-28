@@ -1,3 +1,4 @@
+using BackMaster.Core.Filtering;
 using BackMaster.Core.Ipc;
 using BackMaster.Core.Scheduling;
 using BackMaster.Core.Security;
@@ -78,5 +79,27 @@ public class RequestHandlerTests
     {
         var huge = "{\"command\":\"unlock\",\"phrase\":\"" + new string('a', ServiceProtocol.MaxRequestChars) + "\"}";
         Assert.False(ServiceProtocol.Decode<ServiceResponse>(Handler().HandleLine(huge))!.Ok);
+    }
+
+    [Fact]
+    public void Status_carries_blocked_attempts_after_the_cursor()
+    {
+        var feed = new AttemptFeed();
+        var h = new RequestHandler(() => SampleStatus, () => Verifier, new AttemptThrottle(), () => _now, feed);
+        feed.Record(new BlockedSite("chatgpt.com", true), _now);
+
+        // A new tray gets the cursor but not the old attempt.
+        var first = h.Handle(new ServiceRequest(Commands.Status));
+        Assert.Equal(1, first.Cursor);
+        Assert.Empty(first.Attempts!);
+
+        feed.Record(new BlockedSite("poki.com", false), _now);
+        var next = ServiceProtocol.Decode<ServiceResponse>(h.HandleLine("""{"command":"status","after":1}"""))!;
+        Assert.Equal(2, next.Cursor);
+        var attempt = Assert.Single(next.Attempts!);
+        Assert.Equal("poki.com", attempt.Domain);
+        Assert.False(attempt.IsAi);
+
+        Assert.Empty(h.Handle(new ServiceRequest(Commands.Status, After: 2)).Attempts!);
     }
 }

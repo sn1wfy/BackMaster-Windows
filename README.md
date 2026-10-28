@@ -31,7 +31,10 @@ lessons (default: Wednesday 11:00–12:30 and Thursday 09:10–10:50, Europe/Sof
 
 ## Build and test (Windows, .NET 8 SDK or later)
 
+Windows blocks `.ps1` scripts by default. Allow them for the current PowerShell window only:
+
 ```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 dotnet test BackMaster.sln                       # all unit + Windows integration tests
 .\build.ps1                                      # tests, publish, artifacts\BackMaster.msi
 .\build.ps1 -SkipTests                           # faster rebuild of the MSI
@@ -52,7 +55,7 @@ msiexec /i artifacts\BackMaster.msi /l*v $env:TEMP\backmaster-install.log
 Get-Service BackMaster                                  # Running, Automatic
 Get-Content C:\ProgramData\BackMaster\policy.json
 icacls C:\ProgramData\BackMaster; icacls C:\ProgramData\BackMaster\private
-Get-WinEvent -LogName Application -MaxEvents 20 | ? ProviderName -eq BackMaster | fl TimeCreated,Message
+Get-WinEvent -LogName Application -MaxEvents 50 | ? ProviderName -eq BackMaster | Select -First 10 | fl TimeCreated,Message
 ```
 
 1. Start menu → **BackMaster Settings (Administrator)** → approve UAC → *Достъп* → set a phrase → Save.
@@ -64,6 +67,9 @@ Get-WinEvent -LogName Application -MaxEvents 20 | ? ProviderName -eq BackMaster 
    The right phrase opens settings; Save asks for an administrator password.
 5. As the student, try to edit `C:\ProgramData\BackMaster\policy.json` or read `private\` → access denied.
 6. Set mode back to **По график**. Uninstall: `msiexec /x artifacts\BackMaster.msi` → the hosts section is removed.
+
+Emergency removal, even if the MSI is gone (elevated; add `-DryRun` to preview):
+`powershell -ExecutionPolicy Bypass -File .\scripts\Remove-BackMaster.ps1`
 
 ## Not done yet
 

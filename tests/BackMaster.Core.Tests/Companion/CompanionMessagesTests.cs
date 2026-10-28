@@ -1,4 +1,5 @@
 using BackMaster.Core.Companion;
+using BackMaster.Core.Filtering;
 using BackMaster.Core.Ipc;
 using BackMaster.Core.Scheduling;
 using Xunit;
@@ -68,5 +69,20 @@ public class CompanionMessagesTests
     public void Tips_carry_the_fox_prefix()
     {
         Assert.StartsWith("Съвет от лисицата: ", Messages.RandomTip(new Random(1)));
+    }
+
+    [Fact]
+    public void Blocked_sites_get_the_AI_or_site_message_with_the_domain()
+    {
+        var ai = Messages.Blocked(new BlockedAttempt(1, "chatgpt.com", true, DateTimeOffset.UtcNow));
+        Assert.Equal("AI АСИСТЕНТ", ai.Chip);
+        Assert.Equal("Почакай малко, приятелю!", ai.Title);
+        Assert.StartsWith("chatgpt.com е AI асистент", ai.Body);
+        Assert.NotEmpty(ai.Hint);
+
+        var site = Messages.Blocked(new BlockedAttempt(2, "poki.com", false, DateTimeOffset.UtcNow));
+        Assert.Equal("САЙТ", site.Chip);
+        Assert.Contains("poki.com не е разрешен", site.Body);
+        Assert.Equal("Разбрах", Messages.Dismiss);
     }
 }

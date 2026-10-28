@@ -1,3 +1,4 @@
+using BackMaster.Core.Filtering;
 using BackMaster.Core.Policy;
 using BackMaster.Core.Scheduling;
 using BackMaster.Platform;
@@ -58,6 +59,28 @@ public class TrayTests
             Assert.Equal(policy.Filtering.AiDomains, read.Filtering.AiDomains);
             Assert.Equal(policy.Filtering.BlockedDomains, read.Filtering.BlockedDomains);
             Assert.Equal("Ctrl+Alt+F9", read.Access.Hotkey);
+        });
+    }
+
+    [Fact]
+    public void Fox_card_renders_the_blocked_message()
+    {
+        RunSta(() =>
+        {
+            var messages = Messages.Load();
+            var card = FoxCard.From(messages.Blocked(new BlockedAttempt(1, "chatgpt.com", true, DateTimeOffset.UtcNow)), messages.RandomTip(new Random(2)));
+            using var popup = new FoxPopup(card, messages.Dismiss);
+            // Child controls only paint once the form has been shown; do it off-screen.
+            popup.Location = new Point(-3000, -3000);
+            popup.Show();
+            Application.DoEvents();
+            Assert.InRange(popup.Width, 300, 600);
+            Assert.InRange(popup.Height, 120, 500);
+
+            // Saved so a person can look at the layout; set BACKMASTER_FOX_PNG to choose where.
+            using var bmp = new Bitmap(popup.Width, popup.Height);
+            popup.DrawToBitmap(bmp, new Rectangle(Point.Empty, popup.Size));
+            bmp.Save(Environment.GetEnvironmentVariable("BACKMASTER_FOX_PNG") ?? Path.Combine(Path.GetTempPath(), "backmaster-fox.png"));
         });
     }
 }

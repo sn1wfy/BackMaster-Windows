@@ -1,7 +1,9 @@
+using BackMaster.Core.Filtering;
 using BackMaster.Core.Ipc;
 using BackMaster.Core.Security;
 using BackMaster.Platform;
 using BackMaster.Service;
+using Microsoft.Extensions.Logging.EventLog;
 
 // Installed as the "BackMaster" Windows service running as LocalSystem. It can also be
 // run from an elevated console for testing; these switches only exist on the command
@@ -14,11 +16,16 @@ var options = ServiceOptions.FromArgs(args);
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddWindowsService(o => o.ServiceName = "BackMaster");
+// The Event Log keeps only warnings by default; enforcement changes are worth seeing too.
+builder.Services.Configure<EventLogSettings>(s => s.SourceName = "BackMaster");
+builder.Logging.AddFilter<EventLogLoggerProvider>(level => level >= LogLevel.Information);
 builder.Services.AddSingleton(options);
 builder.Services.AddSingleton<EnforcementState>();
 builder.Services.AddSingleton(new AttemptThrottle());
+builder.Services.AddSingleton(new AttemptFeed());
 builder.Services.AddHostedService<EnforcementWorker>();
 builder.Services.AddHostedService<PipeWorker>();
+builder.Services.AddHostedService<DnsWatcher>();
 
 builder.Build().Run();
 

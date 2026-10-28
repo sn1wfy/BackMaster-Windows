@@ -136,8 +136,9 @@ public sealed partial class PipeClient
         }
     }
 
-    public Task<ServiceResponse?> StatusAsync(CancellationToken cancel = default) =>
-        SendAsync(new ServiceRequest(Commands.Status), TimeSpan.FromSeconds(3), cancel);
+    /// <param name="after">Cursor from the previous reply, to receive blocked attempts since then.</param>
+    public Task<ServiceResponse?> StatusAsync(long? after = null, CancellationToken cancel = default) =>
+        SendAsync(new ServiceRequest(Commands.Status, After: after), TimeSpan.FromSeconds(3), cancel);
 
     public Task<ServiceResponse?> UnlockAsync(string phrase, CancellationToken cancel = default) =>
         SendAsync(new ServiceRequest(Commands.Unlock, phrase), TimeSpan.FromSeconds(15), cancel);

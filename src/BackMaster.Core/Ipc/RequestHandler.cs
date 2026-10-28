@@ -1,3 +1,4 @@
+using BackMaster.Core.Filtering;
 using BackMaster.Core.Security;
 
 namespace BackMaster.Core.Ipc;
@@ -11,10 +12,13 @@ public sealed class RequestHandler
     private readonly Func<string?> _loadVerifier;
     private readonly AttemptThrottle _throttle;
     private readonly Func<DateTimeOffset> _clock;
+    private readonly AttemptFeed? _attempts;
 
     /// <param name="loadVerifier">Reads the stored verifier, or returns null if none is set.</param>
-    public RequestHandler(Func<ServiceStatus> status, Func<string?> loadVerifier, AttemptThrottle throttle, Func<DateTimeOffset>? clock = null)
+    public RequestHandler(Func<ServiceStatus> status, Func<string?> loadVerifier, AttemptThrottle throttle,
+                          Func<DateTimeOffset>? clock = null, AttemptFeed? attempts = null)
     {
+        _attempts = attempts;
         _status = status ?? throw new ArgumentNullException(nameof(status));
         _loadVerifier = loadVerifier ?? throw new ArgumentNullException(nameof(loadVerifier));
         _throttle = throttle ?? throw new ArgumentNullException(nameof(throttle));
@@ -29,10 +33,22 @@ public sealed class RequestHandler
 
     public ServiceResponse Handle(ServiceRequest request) => request.Command switch
     {
-        Commands.Status => new ServiceResponse(true, Status: _status()),
+        Commands.Status => Status(request.After),
         Commands.Unlock => Unlock(request.Phrase),
         _ => new ServiceResponse(false, $"Unknown command '{request.Command}'."),
     };
+
+    /// <summary>
+    /// The status, plus the blocked attempts after the caller's cursor. A caller without a
+    /// cursor gets only the current cursor, so it does not replay attempts from before it started.
+    /// </summary>
+    private ServiceResponse Status(long? after)
+    {
+        if (_attempts is null) return new ServiceResponse(true, Status: _status());
+        long cursor = _attempts.Cursor;
+        var attempts = after is long a ? _attempts.After(a) : Array.Empty<BlockedAttempt>();
+        return new ServiceResponse(true, Status: _status(), Attempts: attempts, Cursor: attempts.Count > 0 ? attempts[^1].Id : cursor);
+    }
 
     private ServiceResponse Unlock(string? phrase)
     {

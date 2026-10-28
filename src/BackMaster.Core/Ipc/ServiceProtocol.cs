@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using BackMaster.Core.Filtering;
 using BackMaster.Core.Scheduling;
 
 namespace BackMaster.Core.Ipc;
@@ -44,7 +45,8 @@ public static class Commands
     public const string Unlock = "unlock";
 }
 
-public sealed record ServiceRequest(string Command, string? Phrase = null);
+/// <param name="After">For status: also return blocked attempts newer than this cursor.</param>
+public sealed record ServiceRequest(string Command, string? Phrase = null, long? After = null);
 
 public enum UnlockResult
 {
@@ -61,7 +63,9 @@ public sealed record ServiceResponse(
     string? Error = null,
     ServiceStatus? Status = null,
     UnlockResult? Unlock = null,
-    int? RetryAfterSeconds = null);
+    int? RetryAfterSeconds = null,
+    IReadOnlyList<BlockedAttempt>? Attempts = null,
+    long? Cursor = null);
 
 /// <param name="PolicyError">Set when policy.json could not be read; the service keeps the last good policy.</param>
 public sealed record ServiceStatus(

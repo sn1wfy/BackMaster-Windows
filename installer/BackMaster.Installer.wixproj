@@ -7,7 +7,7 @@
   <PropertyGroup>
     <OutputName>BackMaster</OutputName>
     <InstallerPlatform>x64</InstallerPlatform>
-    <Version Condition="'$(Version)' == ''">0.2.0</Version>
+    <Version Condition="'$(Version)' == ''">0.3.0</Version>
     <PublishDir Condition="'$(PublishDir)' == ''">$(MSBuildThisFileDirectory)..\artifacts\publish</PublishDir>
     <!-- The package is perMachine (ALLUSERS=1), so the Start menu shortcuts go to the
          all-users folder; these ICEs assume a per-user profile and do not apply. -->

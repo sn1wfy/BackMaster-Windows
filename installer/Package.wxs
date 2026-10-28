@@ -63,6 +63,9 @@
       <RegistryValue Root="HKLM" Key="SOFTWARE\BackMaster" Name="BrowserPolicies" Type="integer" Value="1" KeyPath="yes" />
       <RegistryValue Root="HKLM" Key="SOFTWARE\Policies\Google\Chrome" Name="DnsOverHttpsMode" Type="string" Value="off" />
       <RegistryValue Root="HKLM" Key="SOFTWARE\Policies\Microsoft\Edge" Name="DnsOverHttpsMode" Type="string" Value="off" />
+      <!-- Resolve through Windows, so the service sees lookups of blocked sites and the fox can react. -->
+      <RegistryValue Root="HKLM" Key="SOFTWARE\Policies\Google\Chrome" Name="BuiltInDnsClientEnabled" Type="integer" Value="0" />
+      <RegistryValue Root="HKLM" Key="SOFTWARE\Policies\Microsoft\Edge" Name="BuiltInDnsClientEnabled" Type="integer" Value="0" />
       <RegistryValue Root="HKLM" Key="SOFTWARE\Policies\BraveSoftware\Brave" Name="DnsOverHttpsMode" Type="string" Value="off" />
       <RegistryValue Root="HKLM" Key="SOFTWARE\Policies\Mozilla\Firefox\DNSOverHTTPS" Name="Enabled" Type="integer" Value="0" />
       <RegistryValue Root="HKLM" Key="SOFTWARE\Policies\Mozilla\Firefox\DNSOverHTTPS" Name="Locked" Type="integer" Value="1" />
