@@ -1,5 +1,5 @@
 {
-  "_comment": "BackMaster classroom policy. Installed to %ProgramData%\\BackMaster\\policy.json, writable by Administrators only.",
+  "_comment": "BackMaster classroom policy. Installed to %ProgramData%\\BackMaster\\policy.json, writable by Administrators only. Edit it through the settings window; saving there asks for administrator approval.",
   "schemaVersion": 1,
   "schedule": {
     "_comment": "Scheduled = restrictions only during the periods below; AlwaysOn / AlwaysOff override the timetable. Times are read in timeZone, not the PC's current zone, so changing the Windows time zone cannot move a lesson.",
@@ -9,5 +9,25 @@
       { "day": "Wednesday", "start": "11:00", "end": "12:30" },
       { "day": "Thursday",  "start": "09:10", "end": "10:50" }
     ]
+  },
+  "filtering": {
+    "_comment": "Blocked through the hosts file during lessons. Each domain is also blocked with www. in front; other subdomains must be listed separately.",
+    "aiDomains": [
+      "chatgpt.com", "chat.openai.com", "openai.com", "oaistatic.com", "oaiusercontent.com",
+      "gemini.google.com", "bard.google.com", "aistudio.google.com",
+      "claude.ai", "anthropic.com",
+      "copilot.microsoft.com", "copilot.cloud.microsoft",
+      "perplexity.ai", "poe.com", "deepseek.com", "chat.deepseek.com",
+      "character.ai", "you.com", "phind.com", "chat.mistral.ai", "grok.com", "x.ai",
+      "blackbox.ai", "codeium.com", "tabnine.com", "quillbot.com"
+    ],
+    "blockedDomains": [
+      "poki.com", "crazygames.com", "y8.com", "friv.com", "miniclip.com", "coolmathgames.com",
+      "roblox.com", "slither.io", "agar.io", "krunker.io"
+    ]
+  },
+  "access": {
+    "_comment": "Global shortcut that opens the phrase dialog for the settings window. The phrase itself is stored only as a hash, in a separate file readable by Administrators.",
+    "hotkey": "Ctrl+Alt+Shift+B"
   }
 }

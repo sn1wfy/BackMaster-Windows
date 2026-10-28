@@ -1,0 +1,72 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+
+  <!-- Per-machine install; needs administrator rights. -->
+  <Package Name="BackMaster" Manufacturer="BackMaster" Version="$(var.Version)"
+           UpgradeCode="{485687A7-624F-4B4C-A25D-328CCE31939B}" Scope="perMachine" InstallerVersion="500">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of BackMaster is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="BackMaster">
+        <Directory Id="ConfigFolder" Name="config" />
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="BackMasterMenuFolder" Name="BackMaster" />
+    </StandardDirectory>
+
+    <Feature Id="Main" Title="BackMaster">
+      <ComponentRef Id="ServiceExe" />
+      <ComponentRef Id="TrayExe" />
+      <ComponentRef Id="DefaultPolicy" />
+      <ComponentRef Id="BrowserDnsPolicies" />
+    </Feature>
+
+    <!-- The enforcement service: LocalSystem, automatic start, restarted if it crashes. -->
+    <Component Id="ServiceExe" Directory="INSTALLFOLDER">
+      <File Id="ServiceExe" Source="$(var.PublishDir)\BackMaster.Service.exe" KeyPath="yes" />
+      <ServiceInstall Id="BackMasterService" Name="BackMaster" DisplayName="BackMaster Classroom Service"
+                      Description="Blocks AI assistants and other configured websites during scheduled lessons."
+                      Type="ownProcess" Start="auto" ErrorControl="normal" Account="LocalSystem" Vital="yes">
+        <util:ServiceConfig FirstFailureActionType="restart" SecondFailureActionType="restart"
+                            ThirdFailureActionType="restart" RestartServiceDelayInSeconds="10" ResetPeriodInDays="1" />
+      </ServiceInstall>
+      <ServiceControl Id="BackMasterServiceControl" Name="BackMaster" Start="install" Stop="both" Remove="uninstall" Wait="yes" />
+    </Component>
+
+    <!-- The tray starts for every user at logon; Start menu shortcuts live with the file. -->
+    <Component Id="TrayExe" Directory="INSTALLFOLDER">
+      <File Id="TrayExe" Source="$(var.PublishDir)\BackMaster.Tray.exe" KeyPath="yes">
+        <Shortcut Id="SettingsShortcut" Directory="BackMasterMenuFolder" Name="BackMaster Settings (Administrator)"
+                  Description="Open BackMaster settings (asks for administrator approval)"
+                  Arguments="--admin" WorkingDirectory="INSTALLFOLDER" Advertise="no" />
+        <Shortcut Id="TrayShortcut" Directory="BackMasterMenuFolder" Name="BackMaster"
+                  Description="Show the BackMaster tray icon" WorkingDirectory="INSTALLFOLDER" Advertise="no" />
+      </File>
+      <RemoveFolder Id="RemoveBackMasterMenuFolder" Directory="BackMasterMenuFolder" On="uninstall" />
+      <RegistryValue Root="HKLM" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
+                     Name="BackMasterTray" Type="string" Value="&quot;[#TrayExe]&quot;" />
+    </Component>
+
+    <!-- The service copies this to %ProgramData%\BackMaster\policy.json on first start. -->
+    <Component Id="DefaultPolicy" Directory="ConfigFolder">
+      <File Id="DefaultPolicy" Source="$(var.RepoDir)\config\policy.default.json" KeyPath="yes" />
+    </Component>
+
+    <!--
+      Browsers using DNS-over-HTTPS skip the hosts file. These machine policies turn it
+      off in Chrome, Edge, Brave and Firefox so the block applies to them.
+    -->
+    <Component Id="BrowserDnsPolicies" Directory="INSTALLFOLDER" Guid="{6B0C1E57-2C59-4B8D-9E64-3A1F7D0C5E21}">
+      <RegistryValue Root="HKLM" Key="SOFTWARE\BackMaster" Name="BrowserPolicies" Type="integer" Value="1" KeyPath="yes" />
+      <RegistryValue Root="HKLM" Key="SOFTWARE\Policies\Google\Chrome" Name="DnsOverHttpsMode" Type="string" Value="off" />
+      <RegistryValue Root="HKLM" Key="SOFTWARE\Policies\Microsoft\Edge" Name="DnsOverHttpsMode" Type="string" Value="off" />
+      <RegistryValue Root="HKLM" Key="SOFTWARE\Policies\BraveSoftware\Brave" Name="DnsOverHttpsMode" Type="string" Value="off" />
+      <RegistryValue Root="HKLM" Key="SOFTWARE\Policies\Mozilla\Firefox\DNSOverHTTPS" Name="Enabled" Type="integer" Value="0" />
+      <RegistryValue Root="HKLM" Key="SOFTWARE\Policies\Mozilla\Firefox\DNSOverHTTPS" Name="Locked" Type="integer" Value="1" />
+    </Component>
+
+  </Package>
+</Wix>

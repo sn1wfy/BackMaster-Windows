@@ -1,0 +1,22 @@
+<Project Sdk="WixToolset.Sdk/5.0.2">
+
+  <!--
+    Builds BackMaster.msi from the self-contained executables in artifacts\publish.
+    Run build.ps1 at the repository root rather than building this directly.
+  -->
+  <PropertyGroup>
+    <OutputName>BackMaster</OutputName>
+    <InstallerPlatform>x64</InstallerPlatform>
+    <Version Condition="'$(Version)' == ''">0.2.0</Version>
+    <PublishDir Condition="'$(PublishDir)' == ''">$(MSBuildThisFileDirectory)..\artifacts\publish</PublishDir>
+    <!-- The package is perMachine (ALLUSERS=1), so the Start menu shortcuts go to the
+         all-users folder; these ICEs assume a per-user profile and do not apply. -->
+    <SuppressIces>ICE38;ICE43;ICE57</SuppressIces>
+    <DefineConstants>PublishDir=$(PublishDir);Version=$(Version);RepoDir=$(MSBuildThisFileDirectory)..</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Util.wixext" Version="5.0.2" />
+  </ItemGroup>
+
+</Project>
