@@ -1,28 +1,24 @@
+using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
-using BackMaster.Core.Companion;
 
 namespace BackMaster.Tray;
 
-/// <summary>What the fox says in one card. Chip and hint may be empty.</summary>
-internal sealed record FoxCard(string Chip, string Title, string Body, string Hint = "", string Footer = "")
-{
-    public static FoxCard From(FoxMessage m, string footer = "") => new(m.Chip, m.Title, m.Body, m.Hint, footer);
-    public static FoxCard From(TitledMessage m) => new("", m.Title, m.Body);
-}
-
 /// <summary>
-/// The fox card in the bottom-right corner. It never takes focus from what the student is
-/// typing, stays on top, and closes itself after a while unless the mouse is over it.
+/// The fox card in the bottom-right corner. It is a layered window drawn from a
+/// transparent bitmap, so the fox's ears and the shadow can extend past the panel. It
+/// never takes focus from what the student is typing, stays on top, and closes itself
+/// after a while unless the mouse is over it.
 /// </summary>
 internal sealed partial class FoxPopup : Form
 {
-    private static readonly Color Accent = Color.FromArgb(0xE8, 0x70, 0x1A);
-    private static readonly TimeSpan Lifetime = TimeSpan.FromSeconds(15);
-    private const int CardWidth = 400;
+    private static readonly TimeSpan Lifetime = TimeSpan.FromSeconds(20);
+    private const int FadeSteps = 8;
 
-    private readonly System.Windows.Forms.Timer _timer = new() { Interval = 50 };
+    private readonly RenderedCard _card;
+    private readonly System.Windows.Forms.Timer _timer = new() { Interval = 30 };
     private readonly DateTime _shownAt = DateTime.UtcNow;
     private DateTime _hoveredUntil = DateTime.MinValue;
+    private int _fade;
 
     public FoxPopup(FoxCard card, string dismissText)
     {
@@ -30,57 +26,18 @@ internal sealed partial class FoxPopup : Form
         StartPosition = FormStartPosition.Manual;
         ShowInTaskbar = false;
         TopMost = true;
-        BackColor = Color.White;
-        AutoScaleMode = AutoScaleMode.Dpi;
-        AutoSize = true;
-        AutoSizeMode = AutoSizeMode.GrowAndShrink;
-        Padding = new Padding(0, 4, 0, 0); // room for the accent strip painted in OnPaint
-        Opacity = 0;
-
-        var layout = new TableLayoutPanel { ColumnCount = 2, AutoSize = true, Padding = new Padding(14, 12, 16, 12), BackColor = Color.White };
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-
-        var fox = new Panel { Size = new Size(88, 88), Margin = new Padding(0, 2, 12, 0) };
-        fox.Paint += (_, e) => FoxArt.Draw(e.Graphics, new RectangleF(0, 0, fox.Width, fox.Height));
-        layout.Controls.Add(fox, 0, 0);
-
-        int textWidth = CardWidth - 100 - 30;
-        var text = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false, Margin = Padding.Empty };
-        if (card.Chip.Length > 0)
-            text.Controls.Add(new Label
-            {
-                Text = card.Chip, AutoSize = true, ForeColor = Color.White, BackColor = Accent,
-                Font = new Font("Segoe UI", 7.5f, FontStyle.Bold), Padding = new Padding(5, 2, 5, 2), Margin = new Padding(0, 0, 0, 6),
-            });
-        text.Controls.Add(Paragraph(card.Title, 12f, FontStyle.Bold, Color.FromArgb(0x2B, 0x1D, 0x14), textWidth));
-        text.Controls.Add(Paragraph(card.Body, 9.75f, FontStyle.Regular, Color.FromArgb(0x33, 0x33, 0x33), textWidth));
-        if (card.Hint.Length > 0) text.Controls.Add(Paragraph(card.Hint, 9f, FontStyle.Italic, Color.FromArgb(0x6B, 0x5B, 0x4E), textWidth));
-        if (card.Footer.Length > 0) text.Controls.Add(Paragraph(card.Footer, 9f, FontStyle.Regular, Accent, textWidth));
-
-        var dismiss = new Button
-        {
-            Text = dismissText, AutoSize = true, FlatStyle = FlatStyle.Flat, BackColor = Accent, ForeColor = Color.White,
-            Font = new Font("Segoe UI", 9f, FontStyle.Bold), Padding = new Padding(10, 2, 10, 2), Margin = new Padding(0, 6, 0, 0),
-            Cursor = Cursors.Hand,
-        };
-        dismiss.FlatAppearance.BorderSize = 0;
-        dismiss.Click += (_, _) => Close();
-        text.Controls.Add(dismiss);
-        layout.Controls.Add(text, 1, 0);
-
-        Controls.Add(layout);
+        _card = FoxCardRenderer.Render(card, dismissText, CurrentScale());
+        Size = _card.Bitmap.Size;
         _timer.Tick += OnTick;
     }
 
     /// <summary>Shows the card in the bottom-right corner of the primary screen.</summary>
     public void ShowInCorner()
     {
-        CreateControl();
-        PerformLayout();
         var area = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1280, 720);
-        Location = new Point(area.Right - Width - 16, area.Bottom - Height - 16);
+        Location = new Point(area.Right - Width - 4, area.Bottom - Height - 4);
         Show();
+        Present(0);
         _timer.Start();
     }
 
@@ -90,53 +47,98 @@ internal sealed partial class FoxPopup : Form
     {
         get
         {
-            const int CsDropShadow = 0x20000, WsExToolWindow = 0x80, WsExTopmost = 0x8, WsExNoActivate = 0x08000000;
+            const int WsExLayered = 0x80000, WsExToolWindow = 0x80, WsExTopmost = 0x8, WsExNoActivate = 0x08000000;
             var cp = base.CreateParams;
-            cp.ClassStyle |= CsDropShadow;
-            cp.ExStyle |= WsExToolWindow | WsExTopmost | WsExNoActivate;
+            cp.ExStyle |= WsExLayered | WsExToolWindow | WsExTopmost | WsExNoActivate;
             return cp;
         }
     }
 
-    protected override void OnHandleCreated(EventArgs e)
+    protected override void OnMouseMove(MouseEventArgs e)
     {
-        base.OnHandleCreated(e);
-        // Rounded corners on Windows 11; ignored on Windows 10.
-        int round = 2;
-        _ = DwmSetWindowAttribute(Handle, 33, ref round, sizeof(int));
+        base.OnMouseMove(e);
+        Cursor = _card.CloseButton.Contains(e.Location) || _card.DismissButton.Contains(e.Location) ? Cursors.Hand : Cursors.Default;
     }
 
-    protected override void OnPaint(PaintEventArgs e)
+    protected override void OnMouseUp(MouseEventArgs e)
     {
-        base.OnPaint(e);
-        using var strip = new SolidBrush(Accent);
-        e.Graphics.FillRectangle(strip, 0, 0, Width, 4);
+        base.OnMouseUp(e);
+        if (e.Button == MouseButtons.Left && (_card.CloseButton.Contains(e.Location) || _card.DismissButton.Contains(e.Location)))
+            Close();
     }
 
     private void OnTick(object? sender, EventArgs e)
     {
         var now = DateTime.UtcNow;
-        if (Opacity < 1) Opacity = Math.Min(1, Opacity + 0.15);
+        if (_fade < FadeSteps) Present(255 * ++_fade / FadeSteps);
         if (Bounds.Contains(Cursor.Position)) _hoveredUntil = now.AddSeconds(3);
         if (now - _shownAt > Lifetime && now > _hoveredUntil) Close();
     }
 
+    /// <summary>Puts the card's pixels on screen with the given overall opacity (0-255).</summary>
+    private void Present(int opacity)
+    {
+        nint screen = GetDC(0);
+        nint memory = CreateCompatibleDC(screen);
+        nint bitmap = _card.Bitmap.GetHbitmap(Color.FromArgb(0));
+        nint previous = SelectObject(memory, bitmap);
+        try
+        {
+            var size = new NativeSize(Width, Height);
+            var source = new NativePoint(0, 0);
+            var position = new NativePoint(Left, Top);
+            var blend = new BlendFunction { SourceConstantAlpha = (byte)opacity, AlphaFormat = 1 /* AC_SRC_ALPHA */ };
+            UpdateLayeredWindow(Handle, screen, ref position, ref size, memory, ref source, 0, ref blend, 2 /* ULW_ALPHA */);
+        }
+        finally
+        {
+            SelectObject(memory, previous);
+            DeleteObject(bitmap);
+            DeleteDC(memory);
+            ReleaseDC(0, screen);
+        }
+    }
+
+    private static float CurrentScale()
+    {
+        using var g = Graphics.FromHwnd(IntPtr.Zero);
+        float scale = g.DpiX / 96f;
+        // Keep the card within ~60% of the screen width on small classroom monitors.
+        var area = Screen.PrimaryScreen?.WorkingArea.Width ?? 1280;
+        return Math.Min(scale, area * 0.6f / 770f);
+    }
+
     protected override void Dispose(bool disposing)
     {
-        if (disposing) _timer.Dispose();
+        if (disposing)
+        {
+            _timer.Dispose();
+            _card.Dispose();
+        }
         base.Dispose(disposing);
     }
 
-    private static Label Paragraph(string text, float size, FontStyle style, Color color, int width) => new()
-    {
-        Text = text,
-        AutoSize = true,
-        MaximumSize = new Size(width, 0),
-        Font = new Font("Segoe UI", size, style),
-        ForeColor = color,
-        Margin = new Padding(0, 0, 0, 4),
-    };
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativePoint(int x, int y) { public int X = x, Y = y; }
 
-    [LibraryImport("dwmapi.dll")]
-    private static partial int DwmSetWindowAttribute(nint hwnd, int attribute, ref int value, int size);
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeSize(int cx, int cy) { public int Cx = cx, Cy = cy; }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    private struct BlendFunction
+    {
+        public byte BlendOp, BlendFlags, SourceConstantAlpha, AlphaFormat;
+    }
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool UpdateLayeredWindow(nint hwnd, nint hdcDst, ref NativePoint pptDst, ref NativeSize psize,
+        nint hdcSrc, ref NativePoint pptSrc, int crKey, ref BlendFunction pblend, int dwFlags);
+
+    [LibraryImport("user32.dll")] private static partial nint GetDC(nint hwnd);
+    [LibraryImport("user32.dll")] private static partial int ReleaseDC(nint hwnd, nint hdc);
+    [LibraryImport("gdi32.dll")] private static partial nint CreateCompatibleDC(nint hdc);
+    [LibraryImport("gdi32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static partial bool DeleteDC(nint hdc);
+    [LibraryImport("gdi32.dll")] private static partial nint SelectObject(nint hdc, nint obj);
+    [LibraryImport("gdi32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static partial bool DeleteObject(nint obj);
 }

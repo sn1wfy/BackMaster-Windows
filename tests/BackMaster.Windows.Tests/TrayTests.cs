@@ -62,25 +62,54 @@ public class TrayTests
         });
     }
 
-    [Fact]
-    public void Fox_card_renders_the_blocked_message()
+    [Theory]
+    [InlineData("chatgpt.com", true)]
+    [InlineData("poki.com", false)]
+    public void Fox_card_renders_blocked_messages(string domain, bool isAi)
     {
-        RunSta(() =>
-        {
-            var messages = Messages.Load();
-            var card = FoxCard.From(messages.Blocked(new BlockedAttempt(1, "chatgpt.com", true, DateTimeOffset.UtcNow)), messages.RandomTip(new Random(2)));
-            using var popup = new FoxPopup(card, messages.Dismiss);
-            // Child controls only paint once the form has been shown; do it off-screen.
-            popup.Location = new Point(-3000, -3000);
-            popup.Show();
-            Application.DoEvents();
-            Assert.InRange(popup.Width, 300, 600);
-            Assert.InRange(popup.Height, 120, 500);
+        var messages = Messages.Load();
+        var card = FoxCard.Blocked(messages.Blocked(new BlockedAttempt(1, domain, isAi, DateTimeOffset.UtcNow)), isAi, messages.RandomTip(new Random(2)));
+        using var rendered = FoxCardRenderer.Render(card, messages.Dismiss, 1f);
 
-            // Saved so a person can look at the layout; set BACKMASTER_FOX_PNG to choose where.
-            using var bmp = new Bitmap(popup.Width, popup.Height);
-            popup.DrawToBitmap(bmp, new Rectangle(Point.Empty, popup.Size));
-            bmp.Save(Environment.GetEnvironmentVariable("BACKMASTER_FOX_PNG") ?? Path.Combine(Path.GetTempPath(), "backmaster-fox.png"));
-        });
+        Assert.InRange(rendered.Bitmap.Width, 700, 800);
+        Assert.InRange(rendered.Bitmap.Height, 330, 500);
+        // Transparent outside the panel, opaque inside, and the fox's ear above the panel.
+        Assert.Equal(0, rendered.Bitmap.GetPixel(rendered.Bitmap.Width - 2, 2).A);
+        Assert.Equal(255, rendered.Bitmap.GetPixel(rendered.Bitmap.Width / 2, rendered.Bitmap.Height / 2).A);
+        Assert.True(Enumerable.Range(30, 120).Any(x => rendered.Bitmap.GetPixel(x, 30).A > 200), "fox ears should rise above the panel");
+        Assert.True(rendered.DismissButton.Right <= rendered.Bitmap.Width && rendered.DismissButton.Width > 40);
+        Assert.True(rendered.CloseButton.Width > 10);
+
+        // Saved so a person can look at the layout; set BACKMASTER_FOX_DIR to choose where.
+        string dir = Environment.GetEnvironmentVariable("BACKMASTER_FOX_DIR") ?? Path.GetTempPath();
+        rendered.Bitmap.Save(Path.Combine(dir, $"backmaster-fox-{domain}.png"));
+    }
+
+    [Fact]
+    public void Lesson_and_tip_cards_render()
+    {
+        var messages = Messages.Load();
+        var status = new BackMaster.Core.Ipc.ServiceStatus(true, EnforcementMode.Scheduled, DateTimeOffset.UtcNow.AddMinutes(90), "Europe/Sofia", 36, "");
+        using var start = FoxCardRenderer.Render(FoxCard.Lesson("ЧАС", messages.Starting(status), messages.RandomTip(new Random(1))), messages.Dismiss, 1.5f);
+        using var tip = FoxCardRenderer.Render(new FoxCard(FoxTone.Tip, "СЪВЕТ", "Съвет от лисицата", "Раздели задачата на малки стъпки."), messages.Dismiss, 1f);
+        Assert.True(start.Bitmap.Width > tip.Bitmap.Width); // scaled for high DPI
+        string dir = Environment.GetEnvironmentVariable("BACKMASTER_FOX_DIR") ?? Path.GetTempPath();
+        start.Bitmap.Save(Path.Combine(dir, "backmaster-fox-lesson.png"));
+    }
+
+    [Fact]
+    public void Tray_icons_show_the_fox_with_a_status_dot()
+    {
+        string dir = Environment.GetEnvironmentVariable("BACKMASTER_FOX_DIR") ?? Path.GetTempPath();
+        using var strip = new Bitmap(32 * 3 * 4, 32 * 4);
+        using (var g = Graphics.FromImage(strip))
+        {
+            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
+            int i = 0;
+            foreach (var icon in new[] { TrayIcons.Lesson, TrayIcons.Free, TrayIcons.Unknown })
+                g.DrawImage(icon.ToBitmap(), new Rectangle(i++ * 128, 0, 128, 128));
+        }
+        strip.Save(Path.Combine(dir, "backmaster-tray-icons.png"));
+        Assert.NotEqual(TrayIcons.Lesson.ToBitmap().GetPixel(25, 25), TrayIcons.Free.ToBitmap().GetPixel(25, 25));
     }
 }

@@ -84,7 +84,7 @@ internal static class FoxCardRenderer
         g.SmoothingMode = SmoothingMode.AntiAlias;
         g.InterpolationMode = InterpolationMode.HighQualityBicubic;
         g.PixelOffsetMode = PixelOffsetMode.HighQuality;
-        g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+        g.TextRenderingHint = TextRenderingHint.AntiAlias;
 
         var panel = new RectangleF(ox, oy, w, h);
         using var panelPath = Rounded(panel, Radius * s);

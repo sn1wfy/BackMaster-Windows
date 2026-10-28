@@ -73,7 +73,7 @@ Emergency removal, even if the MSI is gone (elevated; add `-DryRun` to preview):
 
 ## Not done yet
 
-- Companion (fox) artwork and the per-site "blocked" pop-up: hosts blocking shows the browser's own error page.
+- The fox card for blocked sites relies on Windows DNS lookup events; verify on each PC model (see Event Log lines "Blocked lookup of ... by msedge").
 - App blocking (`app_blocked` message) and temporary exceptions (`exception_*` messages).
 - The health checker in `Core/Maintenance` has no Windows `ISystemProbe`, manifest generator or scheduled task yet.
 - Hosts blocking covers listed names only (no wildcards) and does not stop VPNs/proxies or browsers' own DoH where policy is not honoured.

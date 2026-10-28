@@ -86,7 +86,7 @@ internal sealed class TrayApp : ApplicationContext
         if (response?.Cursor is long cursor)
         {
             if (_attemptCursor is not null && response.Attempts is { Count: > 0 } attempts)
-                ShowFox(FoxCard.From(_messages.Blocked(attempts[^1]), _messages.RandomTip(_random)));
+                ShowFox(FoxCard.Blocked(_messages.Blocked(attempts[^1]), attempts[^1].IsAi, _messages.RandomTip(_random)));
             _attemptCursor = cursor;
         }
 
@@ -100,7 +100,9 @@ internal sealed class TrayApp : ApplicationContext
             // Announce transitions, but not the state found at logon.
             if (_lastEnforce is not null && _lastEnforce != _status.Enforce && _status.Mode == EnforcementMode.Scheduled)
             {
-                ShowFox(FoxCard.From(_status.Enforce ? _messages.Starting(_status) : _messages.LessonEnding));
+                ShowFox(_status.Enforce
+                    ? FoxCard.Lesson("ЧАС", _messages.Starting(_status), _messages.RandomTip(_random))
+                    : FoxCard.Lesson("БРАВО", _messages.LessonEnding));
             }
             _lastEnforce = _status.Enforce;
         }
@@ -141,7 +143,12 @@ internal sealed class TrayApp : ApplicationContext
         }
     }
 
-    private void ShowTip() => ShowFox(new FoxCard("", "Лисицата казва…", _messages.RandomTip(_random)));
+    private void ShowTip()
+    {
+        if (_messages.Tips.Count == 0) return;
+        string tip = _messages.Tips[_random.Next(_messages.Tips.Count)];
+        ShowFox(new FoxCard(FoxTone.Tip, "СЪВЕТ", "Съвет от лисицата", char.ToUpper(tip[0]) + tip[1..]));
+    }
 
     /// <summary>Shows a fox card, replacing any card still on screen.</summary>
     private void ShowFox(FoxCard card)
