@@ -1,0 +1,13 @@
+{
+  "_comment": "BackMaster classroom policy. Installed to %ProgramData%\\BackMaster\\policy.json, writable by Administrators only.",
+  "schemaVersion": 1,
+  "schedule": {
+    "_comment": "Scheduled = restrictions only during the periods below; AlwaysOn / AlwaysOff override the timetable. Times are read in timeZone, not the PC's current zone, so changing the Windows time zone cannot move a lesson.",
+    "mode": "Scheduled",
+    "timeZone": "Europe/Sofia",
+    "periods": [
+      { "day": "Wednesday", "start": "11:00", "end": "12:30" },
+      { "day": "Thursday",  "start": "09:10", "end": "10:50" }
+    ]
+  }
+}
