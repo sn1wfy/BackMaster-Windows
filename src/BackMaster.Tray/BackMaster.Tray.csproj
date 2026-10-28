@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="..\..\assets\companion\messages.bg.json" Link="Assets\messages.bg.json" LogicalName="messages.bg.json" WithCulture="false" />
+    <EmbeddedResource Include="..\..\assets\companion\fox-companion.png" Link="Assets\fox-companion.png" LogicalName="fox-companion.png" />
     <Content Include="..\..\config\policy.default.json" Link="config\policy.default.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
